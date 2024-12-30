@@ -88,4 +88,4 @@ for (classe, matiere, jour, creneau, prof, salle), variable in X.items():
 emploi_du_temps_df = pd.DataFrame(emploi_du_temps_resultat, columns=['Classe', 'Matière', 'Jour', 'Créneau', 'Professeur', 'Salle'])
 
 # Afficher le tableau des résultats
-emploi_du_temps_df.to_csv('C:/Users/PC/Desktop/Projet App 1/test_resultat.csv')
+emploi_du_temps_df.to_csv('C:\Users\PC\Desktop\Projet App 1\SCHEDAUT_Model\test_resultat.csv')
