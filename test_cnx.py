@@ -1,138 +1,139 @@
-from pulp import LpProblem, LpMinimize, LpVariable, lpSum
+from pulp import LpProblem, LpMinimize, LpVariable, lpSum, LpStatus
+from sqlalchemy import create_engine
 import pandas as pd
-import MySQLdb
+from datetime import datetime
 
-def get_data_from_db():
-    # Database connection details
-    db = MySQLdb.connect(
-        host="onnjomlc4vqc55fw.chr7pe7iynqr.eu-west-1.rds.amazonaws.com",
-        user="e3v5vqvmprsuzjfi",
-        passwd="a4dps9zul7ar1t85",
-        db="pettlxfldr9yfyx0"
-    )
-    cursor = db.cursor()
+# Configuration de la base de données MySQL
+db_user = 'e3v5vqvmprsuzjfi'
+db_password = 'a4dps9zul7ar1t85'
+db_host = 'onnjomlc4vqc55fw.chr7pe7iynqr.eu-west-1.rds.amazonaws.com'
+db_port = '3306'
+db_name = 'pettlxfldr9yfyx0'
 
-    # Query data
-    def fetch_table(query):
-        cursor.execute(query)
-        columns = [desc[0] for desc in cursor.description]
-        return pd.DataFrame(cursor.fetchall(), columns=columns)
+# Connexion à MySQL
+engine = create_engine(f'mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
 
-    classes_df = fetch_table("SELECT name FROM class")
-    profs_df = fetch_table("SELECT CONCAT(first_name, last_name) as nom FROM users WHERE role='teacher'")
-    salles_df = fetch_table("SELECT name FROM classRoom")
-    matieres_df = fetch_table("SELECT name FROM course")
-    matieres_classes_df = fetch_table("SELECT B.name AS class_name, C.name AS course_name FROM classCourse A LEFT JOIN class B ON A.idClass = B.id LEFT JOIN course C ON A.idCourse = C.id;")
-    matieres_profs_df = fetch_table("SELECT CONCAT(B.first_name, B.last_name) AS prof_name, C.name AS course_name FROM teacherCourse A LEFT JOIN users B ON A.idTeacher = B.id LEFT JOIN course C ON A.idCourse = C.id;")
+# Requêtes SQL pour charger les données
+classes_query = "SELECT * FROM class"
+profs_query = "SELECT * FROM users WHERE role='teacher'"
+matieres_query = "SELECT * FROM course"
+salles_query = "SELECT * FROM classRoom"
+matieres_classes_query = "SELECT * FROM classCourse"
+matieres_profs_query = "SELECT * FROM teacherCourse"
 
-    db.close()
+# Charger les données dans des DataFrames
+classes_df = pd.read_sql(classes_query, engine)
+profs_df = pd.read_sql(profs_query, engine)
+matieres_df = pd.read_sql(matieres_query, engine)
+salles_df = pd.read_sql(salles_query, engine)
+matieres_classes_df = pd.read_sql(matieres_classes_query, engine)
+matieres_profs_df = pd.read_sql(matieres_profs_query, engine)
 
-    return classes_df, profs_df, salles_df, matieres_df, matieres_classes_df, matieres_profs_df
+# Créer des mappings (IDs vers noms)
+id_to_name_class = dict(zip(classes_df['id'], classes_df['name']))
+id_to_name_course = dict(zip(matieres_df['id'], matieres_df['name']))
+id_to_name_teacher = dict(zip(profs_df['id'], profs_df['first_name']))
 
-def generate_schedule():
-    # Fetch data from database
-    (classes_df, profs_df, salles_df, matieres_df, matieres_classes_df, matieres_profs_df) = get_data_from_db()
+# Traduire les données de la BDD en noms
+matieres_classes = {
+    id_to_name_class[class_id]: [id_to_name_course[course_id] for course_id in courses]
+    for class_id, courses in matieres_classes_df.groupby('idClass')['idCourse'].apply(list).to_dict().items()
+}
 
-    # Extract lists
-    classes = classes_df['name'].tolist()
-    profs = profs_df['nom'].tolist()
-    salles = salles_df['name'].tolist()
-    matieres = matieres_df['name'].tolist()
-    jours = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
-    creneaux = ['8h30-10h', '10h15-11h45', '13h-14h30', '14h45-16h15', '16h30-18h']
+matieres_profs = {
+    id_to_name_teacher[teacher_id]: [id_to_name_course[course_id] for course_id in courses]
+    for teacher_id, courses in matieres_profs_df.groupby('idTeacher')['idCourse'].apply(list).to_dict().items()
+}
 
-    matieres_classes = matieres_classes_df.groupby('class_name')['course_name'].apply(list).to_dict()
-    matieres_profs = matieres_profs_df.groupby('prof_name')['course_name'].apply(list).to_dict()
+# Extraire les listes des entités
+classes = list(id_to_name_class.values())
+profs = list(id_to_name_teacher.values())
+matieres = list(id_to_name_course.values())
+salles = salles_df['name'].tolist()
 
-    # Vérifications préliminaires
-    classes_sans_matieres = [classe for classe in classes if classe not in matieres_classes]
-    profs_sans_cours = [prof for prof in profs if prof not in matieres_profs]
+# Vérifier les données traduites
+print("Classes :", classes)
+print("Profs :", profs)
+print("Matières :", matieres)
+print("Salles :", salles)
+print("Matières par classe :", matieres_classes)
+print("Matières par prof :", matieres_profs)
 
-    if classes_sans_matieres:
-        print(f"Avertissement : Les classes suivantes n'ont pas de matières associées : {classes_sans_matieres}")
-    if profs_sans_cours:
-        print(f"Avertissement : Les professeurs suivants n'ont pas de cours associés : {profs_sans_cours}")
+# Définir une plage d'années scolaires et générer des créneaux
+annee_scolaire = pd.date_range(start="2024-09-01", end="2024-09-30", freq='B')  # Jours ouvrables
+jours_ouvrables = annee_scolaire[annee_scolaire.dayofweek < 5]  # Lundi à Vendredi
+creneaux = [(jour, creneau) for jour in jours_ouvrables for creneau in range(5)]  # 5 créneaux par jour
 
-    # Optimization problem
-    emploi_du_temps = LpProblem("Emploi_du_Temps", LpMinimize)
+# Création du problème d'optimisation
+emploi_du_temps = LpProblem("Emploi_du_Temps", LpMinimize)
 
-    # Variables de décision
-    valid_combinations = [
-        (classe, matiere, jour, creneau, prof, salle)
-        for classe in classes
-        if classe in matieres_classes
-        for matiere in matieres_classes[classe]
-        for jour in jours
-        for creneau in creneaux
-        for prof in profs
-        if prof in matieres_profs and matiere in matieres_profs[prof]
-        for salle in salles
-    ]
-    X = LpVariable.dicts("Cours", valid_combinations, cat='Binary')
+# Variables de décision : 1 si un cours est assigné à un jour et créneau donné
+X = LpVariable.dicts("Cours",
+                     [(classe, matiere, jour, creneau, prof, salle)
+                      for classe in classes
+                      for matiere in matieres
+                      for jour, creneau in creneaux
+                      for prof in profs
+                      for salle in salles],
+                     cat='Binary')
 
-    # Contraintes
-    for salle in salles:
-        for jour in jours:
-            for creneau in creneaux:
-                emploi_du_temps += lpSum(
-                    X[(classe, matiere, jour, creneau, prof, salle)]
-                    for classe in classes
-                    if classe in matieres_classes
-                    for matiere in matieres_classes[classe]
-                    for prof in profs
-                    if prof in matieres_profs and matiere in matieres_profs[prof]
-                ) <= 1
+# CONTRAINTES
 
-    for classe in classes:
-        if classe in matieres_classes:
-            for jour in jours:
-                for creneau in creneaux:
-                    emploi_du_temps += lpSum(
-                        X[(classe, matiere, jour, creneau, prof, salle)]
-                        for matiere in matieres_classes[classe]
-                        for prof in profs
-                        if prof in matieres_profs and matiere in matieres_profs[prof]
-                        for salle in salles
-                    ) <= 1
+# 1. Une salle peut accueillir une seule classe, une matière et un prof par créneau et jour
+for salle in salles:
+    for jour, creneau in creneaux:
+        emploi_du_temps += lpSum(X[(classe, matiere, jour, creneau, prof, salle)]
+                                 for classe in classes
+                                 for matiere in matieres_classes.get(classe, [])
+                                 for prof in profs
+                                 if matiere in matieres_profs.get(prof, [])) <= 1
 
-    for prof in profs:
-        if prof in matieres_profs:
-            for jour in jours:
-                for creneau in creneaux:
-                    emploi_du_temps += lpSum(
-                        X[(classe, matiere, jour, creneau, prof, salle)]
-                        for classe in classes
-                        if classe in matieres_classes
-                        for matiere in matieres_profs[prof]
-                        if matiere in matieres_classes[classe]
-                        for salle in salles
-                    ) <= 1
+# 2. Une classe suit une seule matière par créneau et jour
+for classe in classes:
+    for jour, creneau in creneaux:
+        emploi_du_temps += lpSum(X[(classe, matiere, jour, creneau, prof, salle)]
+                                 for matiere in matieres_classes.get(classe, [])
+                                 for prof in profs
+                                 for salle in salles
+                                 if matiere in matieres_profs.get(prof, [])) <= 1
 
-    # Objectif : Minimiser les créneaux inutilisés
-    emploi_du_temps += lpSum(
-        1 - lpSum(
-            X[(classe, matiere, jour, creneau, prof, salle)]
-            for matiere in matieres_classes.get(classe, [])
-            for prof in profs
-            if prof in matieres_profs and matiere in matieres_profs[prof]
-            for salle in salles
-        )
-        for classe in classes
-        for jour in jours
-        for creneau in creneaux
-    )
+# 3. Un prof ne peut enseigner qu'une seule classe à un créneau donné
+for prof in profs:
+    for jour, creneau in creneaux:
+        emploi_du_temps += lpSum(X[(classe, matiere, jour, creneau, prof, salle)]
+                                 for classe in classes
+                                 for matiere in matieres_profs.get(prof, [])
+                                 for salle in salles
+                                 if matiere in matieres_classes.get(classe, [])) <= 1
 
-    # Résolution
-    emploi_du_temps.solve()
+# OBJECTIF : Minimiser les créneaux vides
+emploi_du_temps += lpSum(1 - lpSum(X[(classe, matiere, jour, creneau, prof, salle)]
+                                   for matiere in matieres_classes.get(classe, [])
+                                   for prof in profs
+                                   for salle in salles
+                                   if matiere in matieres_profs.get(prof, []))
+                         for classe in classes for jour, creneau in creneaux)
 
-    # Résultats
-    emploi_du_temps_resultat = []
-    for (classe, matiere, jour, creneau, prof, salle), variable in X.items():
-        if variable.varValue == 1:
-            emploi_du_temps_resultat.append([classe, matiere, jour, creneau, prof, salle])
+# Résoudre le problème
+emploi_du_temps.solve()
 
-    df3 = pd.DataFrame(emploi_du_temps_resultat, columns=['Classe', 'Matière', 'Jour', 'Créneau', 'Professeur', 'Salle'])
-    df3.to_csv('emploi_du_temps.csv', index=False)
+# Vérifier le statut de la solution
+print("Statut de la solution :", LpStatus[emploi_du_temps.status])
 
-if __name__ == '__main__':
-    generate_schedule()
+# Extraire les résultats et les afficher sous forme de tableau
+emploi_du_temps_resultat = []
+for (classe, matiere, jour, creneau, prof, salle), variable in X.items():
+    if variable.varValue == 1:
+        emploi_du_temps_resultat.append([classe, matiere, jour.strftime('%Y-%m-%d'), creneau, prof, salle])
+
+# Convertir les résultats en DataFrame Pandas
+emploi_du_temps_df = pd.DataFrame(emploi_du_temps_resultat, columns=['Classe', 'Matière', 'Date', 'Créneau', 'Professeur', 'Salle'])
+
+# Exporter les résultats
+emploi_du_temps_df.to_csv('emploi_du_temps.csv', index=False)
+
+# Afficher un aperçu
+if not emploi_du_temps_df.empty:
+    print(emploi_du_temps_df.head())
+else:
+    print("Aucune solution trouvée, le fichier est vide.")
