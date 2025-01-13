@@ -2,7 +2,7 @@
 
 ## Description
 
-Ce projet est un système d'optimisation d'emploi du temps conçu pour gérer automatiquement les emplois du temps des classes, professeurs, matières et salles, tout en respectant un ensemble de contraintes.  
+Ce projet est un système d'optimisation d'emploi du temps conçu pour générer automatiquement les emplois du temps des classes, professeurs, matières et salles, tout en respectant un ensemble de contraintes et donc d'une manière optimale.  
 L'algorithme utilise **Python**, **PuLP** (pour la programmation linéaire) et **MySQL** comme base de données.  
 
 ---
