@@ -13,12 +13,14 @@ db_name = 'pettlxfldr9yfyx0'
 # Connexion à MySQL
 engine = create_engine(f'mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
 
+print("======OK===========")
+
 # Charger les données
 def charger_donnees():
     classes_query = "SELECT * FROM class"
-    profs_query = "SELECT * FROM users WHERE role='teacher'"
+    profs_query = "SELECT * FROM users WHERE role='teacher' AND active=1"
     matieres_query = "SELECT * FROM course"
-    salles_query = "SELECT * FROM classRoom"
+    salles_query = "SELECT * FROM classRoom WHERE active=1"
     matieres_classes_query = "SELECT * FROM classCourse"
     matieres_profs_query = "SELECT * FROM teacherCourse"
 
@@ -51,8 +53,11 @@ matieres_classes = {
 }
 
 matieres_profs = {
-    id_to_name_teacher[teacher_id]: [id_to_name_course[course_id] for course_id in courses]
+    id_to_name_teacher[teacher_id]: [
+        id_to_name_course[course_id] for course_id in courses if course_id in id_to_name_course
+    ]
     for teacher_id, courses in matieres_profs_df.groupby('idTeacher')['idCourse'].apply(list).to_dict().items()
+    if teacher_id in id_to_name_teacher
 }
 
 # Listes des entités
@@ -61,14 +66,24 @@ profs = list(id_to_name_teacher.values())
 matieres = list(id_to_name_course.values())
 salles = list(id_to_name_classroom.values())
 
+# Vérifier si les listes salles et profs sont vides
+if not profs:
+    raise ValueError("Aucun enseignant actif disponible.")
+if not salles:
+    raise ValueError("Aucune salle active disponible.")
+
+# Récupérer les capacités des salles et les effectifs des classes
+capacites_salles = dict(zip(salles_df['name'], salles_df['capacity']))
+effectifs_classes = dict(zip(classes_df['name'], classes_df['nb_stud']))
+
 # Créneaux simplifiés
 creneaux = {
-    0: ("08:00", "11:45"),
+    0: ("08:30", "11:45"),
     1: ("13:00", "16:15"),
     2: ("16:30", "18:00"),
 }
 
-jours_ouvrables = pd.date_range(start="2024-09-01", end="2024-12-31", freq='B')
+jours_ouvrables = pd.date_range(start="2024-09-01", end="2025-03-31", freq='B')
 creneaux_par_jour = [(jour, creneau) for jour in jours_ouvrables for creneau in creneaux.keys()]
 
 # Création du problème d'optimisation
@@ -113,6 +128,18 @@ for prof in profs:
                                  for matiere in matieres_profs.get(prof, [])
                                  for salle in salles
                                  if matiere in matieres_classes.get(classe, [])) <= 1
+
+# 4. Une classe ne peut être assignée qu'à une salle ayant une capacité suffisante
+for salle in salles:
+    capacite_salle = capacites_salles[salle]
+    for classe in classes:
+        effectif_classe = effectifs_classes[classe]
+        if effectif_classe > capacite_salle:
+            for jour, creneau in creneaux_par_jour:
+                emploi_du_temps += lpSum(X[(classe, matiere, jour, creneau, prof, salle)]
+                                         for matiere in matieres_classes.get(classe, [])
+                                         for prof in profs
+                                         if matiere in matieres_profs.get(prof, [])) == 0
 
 # OBJECTIF : Minimiser les créneaux vides
 emploi_du_temps += lpSum(1 - lpSum(X[(classe, matiere, jour, creneau, prof, salle)]
