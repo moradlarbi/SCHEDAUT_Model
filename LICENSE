@@ -1,11 +1,23 @@
-Creative Commons Attribution-NonCommercial 4.0 International License
+# Licence Publique Générale GNU v3.0 (GPL-3.0)
 
-Copyright (c) [2025] [SCHEDAUT]
+# Introduction
+Ce logiciel s'inscrit sous la Licence Publique Générale GNU version 3 (GPL-3.0), une licence qui garantit la liberté d'utiliser, de modifier et de redistribuer le programme. Cette licence s'assure que ces libertés sont préservées dans toutes les versions dérivées ou redistribuées.
 
-You are free to:
-- Share: Copy and redistribute the material in any medium or format for any purpose, except for commercial purposes.
-- Adapt: Remix, transform, and build upon the material, but not for commercial purposes.
+# Copyright
+Copyright (C) [2025] [SCHEDAUT]
 
-Under the following terms:
-- Attribution: You must give appropriate credit, provide a link to the license, and indicate if changes were made. You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
-- NonCommercial: You may not use the material for commercial purposes.
+# Droits et Libertés Accordés
+1.  Utilisation libre : Vous êtes libre d'utiliser ce programme pour n'importe quel usage.
+2.  Modification  : Vous pouvez modifier le code source pour adapter le programme à vos besoins.
+3.  Distribution  : Vous pouvez redistribuer le programme, en respectant les termes de la licence.
+4.  Transparence  : Les modifications effectuées doivent être documentées et disponibles sous la même licence.
+
+# Garanties
+Ce programme est distribué dans l'espoir qu'il sera utile, mais  SANS AUCUNE GARANTIE  ; sans même la garantie implicite de  COMMERCIALISATION  ou d' ADÉQUATION À UN OBJECTIF PARTICULIER . Pour en savoir plus, référez-vous à la Licence Publique Générale GNU.
+
+# Conditions de Redistribution
+- Toute copie ou modification du programme doit inclure cette licence.
+- Si vous distribuez une version modifiée, vous devez inclure les changements effectués et conserver la mention de l'auteur original.
+
+# Consultation de la Licence Complète
+Pour toutes informations complémentaires sur la licence consultez le site officiel de la GPL (https://www.gnu.org/licenses/).
